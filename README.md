@@ -28,17 +28,17 @@ public class MyObject : MonoBehaviour
 }
 ```
 
-AsyncBehavior is a component which manages async routines for a specific object. Async.Context provides a suite of WaitFor* mthods which mirror the common ones Unity provides. Note that to use Async.Context, the routine must be started with RunAsync(), or the context will not be created yet, when accessed.
+AsyncBehavior is a component which manages async routines for a specific object. Async.Context provides a suite of WaitFor* methods which mirror the common ones Unity provides. Note that to use Async.Context, the routine must be started with RunAsync(), or the context will not be created yet, when accessed.
 
 ## Waiting on Multiple Routines
 ```cs
-//Resumes when all sub-tasks complete
+//Resumes when all sub-routines complete
 public async Task DoAllOfTheThings()
 {
     await Async.Context.WaitForAll(DoThingOne, DoThingTwo, DoThingThree);
 }
 
-//Resumes when the first sub-task completes (and shuts down the rest)
+//Resumes when the first sub-routine completes (and shuts down the rest)
 public async Task DoAnyOfTheThings()
 {
     await Async.Context.WaitForAll(DoThingOne, DoThingTwo, DoThingThree);
@@ -162,6 +162,11 @@ public async void WaitForTime()
 }
 ```
 In this example, resumer.Resume() gets called before being awaited on. In this case it's 'marked' as resumed and WaitForResumer() will return immediately.
+
+## Cleanup and Error Handling
+RunAsync takes an optional onStop callback, which is always called when a routine ends, regardless of how it ended. This is a good place to do any cleanup. It is passed an Exception as it's only argument. If the routine threw an unhandled exception, it will be received there. Otherwise it will be null. If onStop is not set and an exception occurs, it will be reported using Unity's Debug.LogException.
+
+Call stacks in exceptions from async routines are not very useful. To help with this, set Async.EnableTracing to true. This will add additional info to the exception to help trace where it came from. But, there's a small performance hit for using this, so it is off by default.
 
 ## Adding WaitFor... Methods
 AsyncRoutines.IContext can be extended to add additional WaitFor methods to Async.Context. For example, here is how WaitForSeconds and WaitForAsyncOperation are implemented:
