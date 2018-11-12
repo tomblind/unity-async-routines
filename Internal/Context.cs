@@ -127,6 +127,7 @@ namespace AsyncRoutines.Internal
 			var _resumer = resumer as Resumer;
 			if (_resumer.WasResumed)
 			{
+				_resumer.Reset();
 				return continueTask;
 			}
 			_resumer.Setup(this);

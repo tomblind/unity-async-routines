@@ -33,8 +33,9 @@ namespace AsyncRoutines.Internal
 
 		public void Setup(Context context)
 		{
-			this.id = context.Id;
+			Reset();
 			this.context = context;
+			id = context.Id;
 		}
 
 		public virtual void Reset()
@@ -48,25 +49,22 @@ namespace AsyncRoutines.Internal
 		{
 			if (WasResumed)
 			{
-				throw new Exception("Attempted to re-resume an async resumer. You must call Reset() to use a resumer again.");
+				throw new Exception("Attempted to re-resume an async resumer.");
 			}
 
-			else if (context == null)
+			if (context == null)
 			{
 				WasResumed = true;
 				return null;
 			}
 
-			else if (context.Id != id)
+			if (context.Id != id)
 			{
-				Reset();
 				return null;
 			}
 
 			var _context = context;
-			context = null;
-			id = 0;
-			WasResumed = true;
+			Reset();
 			return _context;
 		}
 	}

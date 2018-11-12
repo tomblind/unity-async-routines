@@ -141,7 +141,7 @@ public async Task WaitForEvent()
     Async.ReleaseResumer(resumer);
 }
 ```
-Notice that IResumers are pooled and should be released when not needed. They can be re-used multiple times, but need to have their Reset() method called after each call to WaitForResumer.
+Notice that IResumers are pooled and should be released when not needed. They can be re-used multiple times, however.
 
 IResumers are also "smart" about being called before being awaited upon.
 ```cs
