@@ -10,7 +10,6 @@ Notable Features Include
 ## Basic Usage
 ```cs
 using UnityEngine;
-using System.Threading.Tasks;
 using AsyncRoutines;
 
 public class MyObject : MonoBehaviour
@@ -153,20 +152,17 @@ Notice that IResumers are pooled and should be released when not needed. However
 
 IResumers are also "smart" about being called before being awaited upon.
 ```cs
-public IResumer resumer = null;
-
-public async Routine WaitForCallback()
+public async Routine DoTheThing()
 {
-    resumer = Routine.GetResumer();
-    WaitForTime(); //Could call resumer.Resume immediately
+    var resumer = Routine.GetResumer();
+    StartTheThing(resumer.Resume); //Could call resumer.Resume immediately
     await Routine.WaitFor(resumer); //Detects that resumer was already called and doesn't wait
     Routine.ReleaseResumer(resumer);
 }
 
-public async void WaitForTime()
+public void StartTheThing(Action finishCallback)
 {
-    await Routine.WaitForSeconds(0); //Won't actually wait since time is zero
-    resumer.Resume();
+    finishCallback(); //Finishes immediately
 }
 ```
 In this example, resumer.Resume() gets called before being awaited on. In this case it's 'marked' as resumed and WaitFor() will return immediately.
