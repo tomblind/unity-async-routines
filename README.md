@@ -5,6 +5,7 @@ A "spiritual successor" to [Unity Routines](https://github.com/tomblind/unity-ro
 Notable Features Include
 - A manager component that can run routines and ensure they are stopped when the GameObject is destroyed
 - Hierarchical support to allow awaiting collections of routines (WaitForAll/WaitForAny)
+- Built-in support for passing AsyncOperations and CustomYieldInstructions to await
 - Utilizes a custom async task builder and extensive pooling to keep routines efficient and reduce garbage
 
 ## Basic Usage
@@ -115,7 +116,7 @@ public IResumer resumer = null;
 public async Routine WaitForCallback()
 {
     resumer = Routine.GetResumer();
-    await Routine.WaitFor(resumer);
+    await resumer;
     Routine.ReleaseResumer(resumer);
     resumer = null;
 }
@@ -132,7 +133,7 @@ public async Routine WaitForUnityEvent()
 {
     var resumer = Routine.GetResumer();
     unityEvent.AddListener(resumer.Resume);
-    await Routine.WaitFor(resumer);
+    await resumer;
     Routine.ReleaseResumer(resumer);
 }
 ```
@@ -143,7 +144,7 @@ public async Routine WaitForEventWithString()
 {
     var resumer = Routine.GetResumer<string>();
     strEvent += resumer.Resume;
-    var result = await Routine.WaitFor(resumer);
+    var result = await resumer;
     Routine.ReleaseResumer(resumer);
     Debug.Log(result);
 }
@@ -156,7 +157,7 @@ public async Routine DoTheThing()
 {
     var resumer = Routine.GetResumer();
     StartTheThing(resumer.Resume); //Could call resumer.Resume immediately
-    await Routine.WaitFor(resumer); //Detects that resumer was already called and doesn't wait
+    await resumer; //Detects that resumer was already called and doesn't wait
     Routine.ReleaseResumer(resumer);
 }
 
@@ -165,7 +166,7 @@ public void StartTheThing(Action finishCallback)
     finishCallback(); //Finishes immediately
 }
 ```
-In this example, resumer.Resume() gets called before being awaited on. In this case it's 'marked' as resumed and WaitFor() will return immediately.
+In this example, resumer.Resume() gets called before being awaited on. In this case it's 'marked' as resumed and the await statement will resume immediately.
 
 ## Cleanup and Error Handling
 Run() takes an optional onStop callback, which is always called when a routine ends, regardless of how it ended. This is a good place to do any cleanup. It is passed an Exception as its only argument. If the routine threw an unhandled exception, it will be received there. Otherwise it will be null. If onStop is not set and an exception occurs, it will be reported using Unity's Debug.LogException.
