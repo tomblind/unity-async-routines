@@ -218,6 +218,18 @@ namespace AsyncRoutines
 			onFinish = continuation;
 		}
 
+		/// <summary> Internal use only. Store the current stack frame for debuggging. </summary>
+		[System.Diagnostics.Conditional("DEBUG")]
+		public void Trace(int frame)
+		{
+#if DEBUG
+			if (TracingEnabled)
+			{
+				stackFrame = new System.Diagnostics.StackFrame(frame + 1, true);
+			}
+#endif
+		}
+
 		/// <summary> Dump pooled objects to clear memory. </summary>
 		public static void ClearPools()
 		{
@@ -292,42 +304,6 @@ namespace AsyncRoutines
 			resumer.id = resumer.routine.id;
 			Current.manager.AddNextFrameResumer(resumer);
 			return nextFrameRoutine;
-		}
-
-		/// <summary>
-		/// Routine the yields until a resumer has been called. Resumes immediately if resumer was already called.
-		/// </summary>
-		public static Routine WaitFor(IResumer resumer)
-		{
-			var _resumer = resumer as Resumer;
-			var resumerRoutine = Get<Routine>(true);
-			resumerRoutine.Trace(1);
-			_resumer.routine = resumerRoutine;
-			_resumer.id = resumerRoutine.id;
-			if (_resumer.WasResumed)
-			{
-				resumerRoutine.SetResult();
-				_resumer.Reset();
-			}
-			return resumerRoutine;
-		}
-
-		/// <summary>
-		/// Routine the yields until a resumer has been called. Resumes immediately if resumer was already called.
-		/// </summary>
-		public static Routine<T> WaitFor<T>(IResumer<T> resumer)
-		{
-			var _resumer = resumer as Resumer<T>;
-			var resumerRoutine = Get<Routine<T>>(true);
-			resumerRoutine.Trace(1);
-			_resumer.routine = resumerRoutine;
-			_resumer.id = resumerRoutine.id;
-			if (_resumer.WasResumed)
-			{
-				resumerRoutine.SetResult(_resumer.result);
-				_resumer.Reset();
-			}
-			return resumerRoutine;
 		}
 
 		/// <summary> Routine that yields until all routines in a collection complete. </summary>
@@ -520,19 +496,19 @@ namespace AsyncRoutines
 		}
 
 		/// <summary> Routine that yields until an AsyncOperation has completed. </summary>
-		public static async Routine WaitFor(AsyncOperation asyncOperation)
+		public static async Routine WaitForAsyncOperation(AsyncOperation asyncOperation)
 		{
 			if (!asyncOperation.isDone)
 			{
 				var resumer = GetResumer<AsyncOperation>();
 				asyncOperation.completed += resumer.Resume;
-				await WaitFor(resumer);
+				await resumer;
 				ReleaseResumer(resumer);
 			}
 		}
 
 		/// <summary> Routine that yields until a CustomYieldInstruction has completed. </summary>
-		public static async Routine WaitFor(CustomYieldInstruction customYieldInstruction)
+		public static async Routine WaitForCustomYieldInstruction(CustomYieldInstruction customYieldInstruction)
 		{
 			while (customYieldInstruction.keepWaiting)
 			{
@@ -540,7 +516,7 @@ namespace AsyncRoutines
 			}
 		}
 
-		protected void Start()
+		public void Start()
 		{
 			if (state == State.NotStarted)
 			{
@@ -590,17 +566,6 @@ namespace AsyncRoutines
 			}
 #endif
 			root.Stop(exception);
-		}
-
-		[System.Diagnostics.Conditional("DEBUG")]
-		protected void Trace(int frame)
-		{
-#if DEBUG
-			if (TracingEnabled)
-			{
-				stackFrame = new System.Diagnostics.StackFrame(frame + 1, true);
-			}
-#endif
 		}
 
 		private void Setup(bool yield, RoutineBase parent)
@@ -840,6 +805,50 @@ namespace AsyncRoutines
 		private static I GetResult<I>(RoutineBase routine)
 		{
 			return (routine as Routine<I>).GetResult();
+		}
+	}
+
+	//Extensions to allow certain types to be awaited with using Routine.WaitFor
+	public static class RoutineExtensions
+	{
+		public static Routine GetAwaiter(this AsyncOperation asyncOperation)
+		{
+			return Routine.WaitForAsyncOperation(asyncOperation).GetAwaiter();
+		}
+
+		public static Routine GetAwaiter(this CustomYieldInstruction customYieldInstruction)
+		{
+			return Routine.WaitForCustomYieldInstruction(customYieldInstruction).GetAwaiter();
+		}
+
+		public static Routine GetAwaiter(this IResumer resumer)
+		{
+			var _resumer = resumer as Resumer;
+			var resumerRoutine = Routine.Get<Routine>(true);
+			resumerRoutine.Trace(1);
+			_resumer.routine = resumerRoutine;
+			_resumer.id = resumerRoutine.Id;
+			if (_resumer.WasResumed)
+			{
+				resumerRoutine.SetResult();
+				_resumer.Reset();
+			}
+			return resumerRoutine;
+		}
+
+		public static Routine<T> GetAwaiter<T>(this IResumer<T> resumer)
+		{
+			var _resumer = resumer as Resumer<T>;
+			var resumerRoutine = Routine.Get<Routine<T>>(true);
+			resumerRoutine.Trace(1);
+			_resumer.routine = resumerRoutine;
+			_resumer.id = resumerRoutine.Id;
+			if (_resumer.WasResumed)
+			{
+				resumerRoutine.SetResult(_resumer.result);
+				_resumer.Reset();
+			}
+			return resumerRoutine;
 		}
 	}
 }
