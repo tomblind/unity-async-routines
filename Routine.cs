@@ -101,13 +101,13 @@ namespace AsyncRoutines
 
 		protected interface IStateMachineRef
 		{
-			IAsyncStateMachine Value { get; }
+			void MoveNext();
 		}
 
 		protected class StateMachineRef<T> : IStateMachineRef where T : IAsyncStateMachine
 		{
 			public T value;
-			public IAsyncStateMachine Value { get { return value; } }
+			public void MoveNext() { value.MoveNext(); }
 		}
 
 		protected UInt64 id = 0; //Used to verify a routine is still the same instance and hasn't been recycled
@@ -169,7 +169,7 @@ namespace AsyncRoutines
 
 				var currentId = id;
 				steppingStack.Push(this);
-				stateMachine.Value.MoveNext();
+				stateMachine.MoveNext();
 				Assert.IsTrue(steppingStack.Peek() == this);
 				steppingStack.Pop();
 				if (currentId != id)
