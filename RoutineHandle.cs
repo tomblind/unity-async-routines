@@ -20,39 +20,31 @@
 //OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //SOFTWARE.
 
-using AsyncRoutines.Internal;
+using System;
 
 namespace AsyncRoutines
 {
-	public static class Async
+	public struct RoutineHandle
 	{
-		private static Pool<Resumer> resumerPool = new Pool<Resumer>();
-		private static TypedPool<IResumerBase> resumerArgPool = new TypedPool<IResumerBase>();
-		public static IContext Context { get { return Internal.Context.Current; } }
-		public static bool TracingEnabled { get; set; }
+		private UInt64 id;
+		private Routine routine;
 
-		public static IResumer GetResumer()
+		public RoutineHandle(Routine routine)
 		{
-			return resumerPool.Get();
+			this.routine = routine;
+			id = routine.Id;
 		}
 
-		public static IResumer<T> GetResumer<T>()
-		{
-			return resumerArgPool.Get<Resumer<T>>();
-		}
+		/// <summary> Indicates if routine is stopped. </summary>
+		public bool IsDead { get { return (id != routine.Id || routine.IsDead); } }
 
-		public static void ReleaseResumer(IResumer resumer)
+		/// <summary> Stop the routine. </summary>
+		public void Stop()
 		{
-			var _resumer = resumer as Resumer;
-			_resumer.Reset();
-			resumerPool.Release(_resumer);
-		}
-
-		public static void ReleaseResumer<T>(IResumer<T> resumer)
-		{
-			var _resumer = resumer as Resumer<T>;
-			_resumer.Reset();
-			resumerArgPool.Release(_resumer);
+			if (id == routine.Id)
+			{
+				routine.Stop();
+			}
 		}
 	}
 }

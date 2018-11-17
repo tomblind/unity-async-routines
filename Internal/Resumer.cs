@@ -24,82 +24,68 @@ using System;
 
 namespace AsyncRoutines.Internal
 {
-	internal abstract class ResumerBase
+	internal class Resumer : IResumer
 	{
-		private UInt64 id = 0;
-		private Context context = null;
-
+		public Routine routine = null;
+		public UInt64 id = 0;
 		public bool WasResumed { get; private set; }
 
-		public void Setup(Context context)
-		{
-			Reset();
-			this.context = context;
-			id = context.Id;
-		}
-
-		public virtual void Reset()
-		{
-			id = 0;
-			context = null;
-			WasResumed = false;
-		}
-
-		protected Context GetContext()
-		{
-			if (WasResumed)
-			{
-				throw new Exception("Attempted to re-resume an async resumer.");
-			}
-
-			if (context == null)
-			{
-				WasResumed = true;
-				return null;
-			}
-
-			if (context.Id != id)
-			{
-				return null;
-			}
-
-			var _context = context;
-			Reset();
-			return _context;
-		}
-	}
-
-	internal class Resumer : ResumerBase, IResumer
-	{
 		public void Resume()
 		{
-			var context = GetContext();
-			if (context != null)
+			if (routine != null)
 			{
-				context.Resume();
+				if (id == routine.Id)
+				{
+					var _task = routine;
+					Reset();
+					_task.Step();
+				}
 			}
+			else
+			{
+				WasResumed = true;
+			}
+		}
+
+		public void Reset()
+		{
+			WasResumed = false;
+			routine = null;
+			id = 0;
 		}
 	}
 
-	internal class Resumer<T> : ResumerBase, IResumer<T>
+	internal class Resumer<T> : IResumer<T>
 	{
-		public T Result { get; private set; }
+		public Routine<T> routine = null;
+		public UInt64 id = 0;
+		public T result = default(T);
+		public bool WasResumed { get; private set; }
 
 		public void Resume(T result)
 		{
-			Result = result;
-
-			var context = GetContext();
-			if (context != null)
+			if (routine != null)
 			{
-				context.Resume(result);
+				if (id == routine.Id)
+				{
+					var _task = routine;
+					Reset();
+					_task.SetResult(result);
+					_task.Step();
+				}
+			}
+			else
+			{
+				this.result = result;
+				WasResumed = true;
 			}
 		}
 
-		public override void Reset()
+		public void Reset()
 		{
-			Result = default(T);
-			base.Reset();
+			WasResumed = false;
+			routine = null;
+			id = 0;
 		}
 	}
 }

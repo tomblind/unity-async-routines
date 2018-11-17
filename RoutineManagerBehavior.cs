@@ -20,51 +20,42 @@
 //OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //SOFTWARE.
 
-using System.Threading.Tasks;
 using System;
 using UnityEngine;
 
 namespace AsyncRoutines
 {
-	public class AsyncBehavior : MonoBehaviour
+	public class RoutineManagerBehavior : MonoBehaviour
 	{
-		private AsyncManager asyncManager = new AsyncManager();
+		public RoutineManager Manager { get { return routineManager; } }
 
-		public AsyncManager Manager { get { return asyncManager; } }
+		private RoutineManager routineManager = new RoutineManager();
 
 		public virtual void Update()
 		{
-			asyncManager.Update();
+			routineManager.Update();
 		}
 
 		public virtual void LateUpdate()
 		{
-			asyncManager.Flush();
+			routineManager.Flush();
 		}
 
 		public void OnDestroy()
 		{
-			asyncManager.StopAll();
+			routineManager.StopAll();
 		}
 
-		/// <summary>
-		/// Run an async method
-		/// <para />
-		/// Required signature for fn:
-		///     async Task MyMethod() {...}
-		/// <para />
-		/// Note that onStop is called when functions completes or is stopped early. Exception will be null if no error
-		/// occurred.
-		/// </summary>
-		public AsyncManager.ContextHandle RunAsync(Func<Task> fn, Action<Exception> onStop = null)
+		/// <summary> Manages and runs a routine. </summary>
+		public RoutineHandle Run(Routine routine, Action<Exception> onStop = null)
 		{
-			return asyncManager.Run(fn, onStop);
+			return routineManager.Run(routine, onStop);
 		}
 
-		/// <summary> Stops all managed async functions </summary>
-		public void StopAllAsync()
+		/// <summary> Stops all managed routines. </summary>
+		public void StopAll()
 		{
-			asyncManager.StopAll();
+			routineManager.StopAll();
 		}
 	}
 }

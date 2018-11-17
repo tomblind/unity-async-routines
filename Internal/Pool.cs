@@ -25,35 +25,63 @@ using System;
 
 namespace AsyncRoutines.Internal
 {
-	internal class Pool<T> where T : class, new()
+	public class Pool<T> where T : class, new()
 	{
 		private readonly Stack<T> pool = new Stack<T>();
+		private int liveCount = 0;
 
 		public T Get()
-        {
-            return (pool.Count > 0) ? (pool.Pop() as T) : new T();
-        }
+		{
+			++liveCount;
+			return (pool.Count > 0) ? (pool.Pop() as T) : new T();
+		}
 
 		public void Release(T obj)
-        {
-            pool.Push(obj);
-        }
+		{
+			--liveCount;
+			pool.Push(obj);
+		}
+
+		public void Clear()
+		{
+			pool.Clear();
+		}
+
+		public string Report() { return string.Format("{0}/{1}", liveCount, pool.Count); }
 	}
 
-	internal class TypedPool<I>
+	public class TypedPool<I>
 	{
 		private readonly Dictionary<Type, Stack<I>> pools = new Dictionary<Type, Stack<I>>();
+		private int liveCount = 0;
 
 		public T Get<T>() where T : class, I, new()
 		{
+			++liveCount;
 			var pool = GetPool(typeof(T));
 			return (pool.Count > 0) ? (pool.Pop() as T) : new T();
 		}
 
 		public void Release(I obj)
 		{
+			--liveCount;
 			var pool = GetPool(obj.GetType());
 			pool.Push(obj);
+		}
+
+		public void Clear()
+		{
+			pools.Clear();
+		}
+
+		public string Report()
+		{
+			var c = 0;
+			foreach (var t in pools.Values)
+			{
+				c += t.Count;
+			}
+			return string.Format("{0}/{1}", liveCount, c);
 		}
 
 		private Stack<I> GetPool(Type type)
