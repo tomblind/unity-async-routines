@@ -35,20 +35,20 @@ public class MyObject : MonoBehaviour
 
 RoutineManagerBehavior is a component which manages routines for a specific object. All routines started with Run will be shut down when the object is destroyed. Run also returns a handle which allows individual routines to be stopped manually.
 
-Routine provides a suite of WaitFor* methods for use in 'async Routine' methods. Note that to use certain WaitFor methods, a routine must be "managed", which means it or one of it's ancestors must have been started with RoutineManager.Run().
+Routine provides a suite of WaitFor* methods for use in 'async Routine' methods. Note that to use certain WaitFor methods, a routine must be "managed". That means it, or one of its ancestors, must have been started with RoutineManager.Run().
 
 ## Waiting on Multiple Routines
 ```cs
 //Resumes when all sub-routines complete
 public async Routine DoAllOfTheThings()
 {
-    await Routine.WaitForAll(DoThingOne, DoThingTwo, DoThingThree);
+    await Routine.WaitForAll(DoThingOne(), DoThingTwo(), DoThingThree());
 }
 
 //Resumes when the first sub-routine completes (and shuts down the rest)
 public async Routine DoAnyOfTheThings()
 {
-    await Routine.WaitForAny(DoThingOne, DoThingTwo, DoThingThree);
+    await Routine.WaitForAny(DoThingOne(), DoThingTwo(), DoThingThree());
 }
 
 public async Routine DoThingOne() { ... }
@@ -75,7 +75,7 @@ public async Routine<int> GetTheNumber()
 public async Routine PrintAllOfTheNumbers()
 {
     //numbers is an int[] containing all of the results in order
-    var numbers = await Routine.WaitForAll(GetTheFirstNumber, GetTheSecondNumber, GetTheThirdNumber);
+    var numbers = await Routine.WaitForAll(GetTheFirstNumber(), GetTheSecondNumber(), GetTheThirdNumber());
     foreach (var num in numbers)
     {
         Debug.Log(num);
@@ -85,7 +85,7 @@ public async Routine PrintAllOfTheNumbers()
 public async Routine PrintAnyOfTheNumbers()
 {
     //num is the result of the first routine to finish
-    var num = await Routine.WaitForAny(GetTheFirstNumber, GetTheSecondNumber, GetTheThirdNumber);
+    var num = await Routine.WaitForAny(GetTheFirstNumber(), GetTheSecondNumber(), GetTheThirdNumber());
     Debug.Log(num);
 }
 
