@@ -278,8 +278,16 @@ namespace AsyncRoutines
 		}
 
 		/// <summary> Release a resumer to the pool. </summary>
-		public static void ReleaseResumer(IResumerBase resumer)
+		public static void ReleaseResumer(IResumer resumer)
 		{
+			(resumer as Resumer).Reset();
+			resumerPool.Release(resumer);
+		}
+
+		/// <summary> Release a resumer to the pool. </summary>
+		public static void ReleaseResumer<T>(IResumer<T> resumer)
+		{
+			(resumer as Resumer<T>).Reset();
 			resumerPool.Release(resumer);
 		}
 
