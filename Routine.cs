@@ -518,6 +518,10 @@ namespace AsyncRoutines
 
 		public void Start()
 		{
+			if (manager == null)
+			{
+				throw new Exception("Routine is not associated with a manager!");
+			}
 			if (state == State.NotStarted)
 			{
 				Step();
