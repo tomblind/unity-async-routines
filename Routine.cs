@@ -22,7 +22,6 @@
 
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using System.Linq;
 using System;
 using UnityEngine;
 using UnityEngine.Assertions;
@@ -619,11 +618,6 @@ namespace AsyncRoutines
 				manager = null;
 			}
 		}
-
-		protected static bool IsAlive(RoutineBase routine)
-		{
-			return !routine.IsDead;
-		}
 	}
 
 	[AsyncMethodBuilder(typeof(Routine))]
@@ -693,9 +687,12 @@ namespace AsyncRoutines
 		/// <summary> Internal use only. Steps a routine only if all of it's children are finished. </summary>
 		public void StepAll()
 		{
-			if (children.Any(IsAlive))
+			foreach (var child in children)
 			{
-				return;
+				if (!child.IsDead)
+				{
+					return;
+				}
 			}
 
 			Step();
@@ -774,13 +771,21 @@ namespace AsyncRoutines
 		/// </summary>
 		public void StepAll<I>()
 		{
-			if (children.Any(IsAlive))
+			foreach (var child in children)
 			{
-				return;
+				if (!child.IsDead)
+				{
+					return;
+				}
 			}
 
-			var _this = this as Routine<I[]>;
-			_this.SetResult(children.Select(GetResult<I>).ToArray());
+			var resultArray = new I[children.Count];
+			for (var i = 0; i < children.Count; ++i)
+			{
+				resultArray[i] = (children[i] as Routine<I>).GetResult();
+			}
+
+			(this as Routine<I[]>).SetResult(resultArray);
 
 			Step();
 		}
@@ -788,7 +793,14 @@ namespace AsyncRoutines
 		/// <summary> Internal use only. Steps a routine and sets it's result from the first completed child. </summary>
 		public void StepAny()
 		{
-			SetResult((children.First(IsFinished) as Routine<T>).GetResult());
+			foreach (var child in children)
+			{
+				if (child.IsCompleted)
+				{
+					SetResult((child as Routine<T>).GetResult());
+					break;
+				}
+			}
 
 			Step();
 		}
@@ -805,16 +817,6 @@ namespace AsyncRoutines
 		{
 			result = default(T);
 			base.Reset();
-		}
-
-		private static bool IsFinished(RoutineBase routine)
-		{
-			return routine.IsCompleted;
-		}
-
-		private static I GetResult<I>(RoutineBase routine)
-		{
-			return (routine as Routine<I>).GetResult();
 		}
 	}
 
