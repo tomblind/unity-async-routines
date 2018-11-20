@@ -307,10 +307,8 @@ namespace AsyncRoutines
 		{
 			var nextFrameRoutine = Get<Routine>(true);
 			nextFrameRoutine.Trace(1);
-			var resumer = GetResumer() as Resumer;
-			resumer.routine = nextFrameRoutine;
-			resumer.id = resumer.routine.id;
-			Current.manager.AddNextFrameResumer(resumer);
+			var resumer = new LightResumer{routine = nextFrameRoutine, id = nextFrameRoutine.id};
+			Current.manager.AddNextFrameResumer(ref resumer);
 			return nextFrameRoutine;
 		}
 

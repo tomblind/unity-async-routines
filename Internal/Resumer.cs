@@ -88,4 +88,18 @@ namespace AsyncRoutines.Internal
 			id = 0;
 		}
 	}
+
+	public struct LightResumer : IResumer
+	{
+		public Routine routine;
+		public UInt64 id;
+
+		public void Resume()
+		{
+			if (id == routine.Id)
+			{
+				routine.Step();
+			}
+		}
+	}
 }

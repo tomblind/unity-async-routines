@@ -23,13 +23,14 @@
 using System.Collections.Generic;
 using System;
 using UnityEngine;
+using AsyncRoutines.Internal;
 
 namespace AsyncRoutines
 {
 	public class RoutineManager
 	{
-		private List<IResumer> nextFrameResumers = new List<IResumer>();
-		private List<IResumer> pendingNextFrameResumers = new List<IResumer>();
+		private List<LightResumer> nextFrameResumers = new List<LightResumer>();
+		private List<LightResumer> pendingNextFrameResumers = new List<LightResumer>();
 		private readonly List<Routine> roots = new List<Routine>();
 
 		/// <summary> Resumers managed routines that are waiting for next frame. </summary>
@@ -38,7 +39,6 @@ namespace AsyncRoutines
 			foreach (var resumer in nextFrameResumers)
 			{
 				resumer.Resume();
-				Routine.ReleaseResumer(resumer);
 			}
 			nextFrameResumers.Clear();
 
@@ -85,9 +85,9 @@ namespace AsyncRoutines
 		}
 
 		/// <summary>
-		/// Schedules a resumer to be called next frame. Resumer will be auto-released after being called.
+		/// Internal use only. Schedules a lightweight resumer to be called next frame.
 		/// </summary>
-		public void AddNextFrameResumer(IResumer resumer)
+		public void AddNextFrameResumer(ref LightResumer resumer)
 		{
 			pendingNextFrameResumers.Add(resumer);
 		}
