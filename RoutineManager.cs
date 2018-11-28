@@ -99,6 +99,7 @@ namespace AsyncRoutines
 				{
 					maxRoot = Mathf.Max(maxRoot, i);
 					roots[i] = task;
+					added = true;
 					break;
 				}
 			}
