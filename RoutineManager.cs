@@ -32,6 +32,7 @@ namespace AsyncRoutines
 		private List<LightResumer> nextFrameResumers = new List<LightResumer>();
 		private List<LightResumer> pendingNextFrameResumers = new List<LightResumer>();
 		private readonly List<Routine> roots = new List<Routine>();
+		private int maxRoot = -1;
 
 		/// <summary> Resumers managed routines that are waiting for next frame. </summary>
 		public void Update()
@@ -42,17 +43,24 @@ namespace AsyncRoutines
 			}
 			nextFrameResumers.Clear();
 
-			for (var i = 0; i < roots.Count;)
+			//Cleanup dead routines
+			var _maxRoot = maxRoot;
+			maxRoot = -1;
+			for (var i = 0; i <= _maxRoot; ++i)
 			{
 				var root = roots[i];
+				if (root == null)
+				{
+					continue;
+				}
 				if (root.IsDead)
 				{
-					roots.RemoveAt(i);
+					roots[i] = null;
 					Routine.Release(root);
 				}
 				else
 				{
-					++i;
+					maxRoot = i;
 				}
 			}
 		}
@@ -68,18 +76,38 @@ namespace AsyncRoutines
 		/// <summary> Stops all managed routines. </summary>
 		public void StopAll()
 		{
-			foreach (var root in roots)
+			for (var i = 0; i < roots.Count; ++i)
 			{
-				Routine.Release(root);
+				if (roots[i] == null)
+				{
+					continue;
+				}
+				Routine.Release(roots[i]);
+				roots[i] = null;
 			}
-			roots.Clear();
 		}
 
 		/// <summary> Manages and runs a routine. </summary>
 		public RoutineHandle Run(Routine task, Action<Exception> onStop = null)
 		{
 			task.SetManager(this, onStop ?? DefaultOnStop);
-			roots.Add(task);
+
+			var added = false;
+			for (var i = 0; i < roots.Count; ++i)
+			{
+				if (roots[i] == null)
+				{
+					maxRoot = Mathf.Max(maxRoot, i);
+					roots[i] = task;
+					break;
+				}
+			}
+			if (!added)
+			{
+				maxRoot = roots.Count;
+				roots.Add(task);
+			}
+
 			task.Step();
 			return new RoutineHandle(task);
 		}
