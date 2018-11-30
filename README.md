@@ -8,6 +8,8 @@ Notable Features Include
 - Built-in support for passing AsyncOperations and CustomYieldInstructions to await
 - Utilizes a custom async task builder and extensive pooling to keep routines efficient and reduce garbage
 
+There is also an extension [Unity AsyncTweens](https://github.com/tomblind/unity-async-tweens) which adds a set of tweening routines that can be used in Async Routines.
+
 ## Basic Usage
 ```cs
 using UnityEngine;
