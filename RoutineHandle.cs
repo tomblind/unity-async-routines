@@ -36,12 +36,12 @@ namespace AsyncRoutines
 		}
 
 		/// <summary> Indicates if routine is stopped. </summary>
-		public bool IsDead { get { return (id != routine.Id || routine.IsDead); } }
+		public bool IsDead { get { return (routine == null || id != routine.Id || routine.IsDead); } }
 
 		/// <summary> Stop the routine. </summary>
 		public void Stop()
 		{
-			if (id == routine.Id)
+			if (routine != null && id == routine.Id)
 			{
 				routine.Stop();
 			}
