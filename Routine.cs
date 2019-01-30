@@ -301,6 +301,17 @@ namespace AsyncRoutines
 			return continueRoutine;
 		}
 
+		/// <summary>
+		/// Do-nothing routine that resumes immediately with the specified result. Good for quieting warning about async
+		/// functions with no await statement.
+		/// </summary>
+		public static Routine<T> Continue<T>(T result)
+		{
+			var continueRoutine = Get<Routine<T>>(false);
+			continueRoutine.SetResult(result);
+			return continueRoutine;
+		}
+
 		/// <summary> Routine the yields until the next frame's update. Current routine must be managed. </summary>
 		public static Routine WaitForNextFrame()
 		{
