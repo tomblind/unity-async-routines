@@ -700,7 +700,7 @@ namespace AsyncRoutines
 		{
 			foreach (var child in children)
 			{
-				if (!child.IsDead)
+				if (!child.IsCompleted)
 				{
 					return;
 				}
@@ -784,7 +784,7 @@ namespace AsyncRoutines
 		{
 			foreach (var child in children)
 			{
-				if (!child.IsDead)
+				if (!child.IsCompleted)
 				{
 					return;
 				}
