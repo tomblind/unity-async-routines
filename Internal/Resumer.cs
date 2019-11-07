@@ -101,5 +101,11 @@ namespace AsyncRoutines.Internal
 				routine.Step();
 			}
 		}
+
+		public void Reset()
+		{
+			routine = null;
+			id = 0;
+		}
 	}
 }

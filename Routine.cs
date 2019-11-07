@@ -279,14 +279,14 @@ namespace AsyncRoutines
 		/// <summary> Release a resumer to the pool. </summary>
 		public static void ReleaseResumer(IResumer resumer)
 		{
-			(resumer as Resumer).Reset();
+			resumer.Reset();
 			resumerPool.Release(resumer);
 		}
 
 		/// <summary> Release a resumer to the pool. </summary>
 		public static void ReleaseResumer<T>(IResumer<T> resumer)
 		{
-			(resumer as Resumer<T>).Reset();
+			resumer.Reset();
 			resumerPool.Release(resumer);
 		}
 
@@ -847,6 +847,7 @@ namespace AsyncRoutines
 		public static Routine GetAwaiter(this IResumer resumer)
 		{
 			var _resumer = resumer as Resumer;
+			Assert.IsNotNull(_resumer);
 			var resumerRoutine = Routine.Get<Routine>(true);
 			resumerRoutine.Trace(1);
 			_resumer.routine = resumerRoutine;
@@ -862,6 +863,7 @@ namespace AsyncRoutines
 		public static Routine<T> GetAwaiter<T>(this IResumer<T> resumer)
 		{
 			var _resumer = resumer as Resumer<T>;
+			Assert.IsNotNull(_resumer);
 			var resumerRoutine = Routine.Get<Routine<T>>(true);
 			resumerRoutine.Trace(1);
 			_resumer.routine = resumerRoutine;
