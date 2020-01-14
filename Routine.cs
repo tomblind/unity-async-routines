@@ -511,6 +511,24 @@ namespace AsyncRoutines
 			}
 		}
 
+		/// <summary>
+		/// Routine that yields until a resumer is resumed.
+		/// Useful for using resumers in WaitForAll/WaitForAny.
+		/// </summary>
+		public static async Routine WaitForResumer(IResumer resumer)
+		{
+			await resumer;
+		}
+
+		/// <summary>
+		/// Routine that yields until a resumer is resumed.
+		/// Useful for using resumers in WaitForAll/WaitForAny.
+		/// </summary>
+		public static async Routine<T> WaitForResumer<T>(IResumer<T> resumer)
+		{
+			return await resumer;
+		}
+
 		/// <summary> Routine that yields until an AsyncOperation has completed. </summary>
 		public static async Routine WaitForAsyncOperation(AsyncOperation asyncOperation)
 		{
