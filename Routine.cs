@@ -111,6 +111,7 @@ namespace AsyncRoutines
 
 		protected UInt64 id = 0; //Used to verify a routine is still the same instance and hasn't been recycled
 		protected State state = State.NotStarted;
+		protected bool stopChildrenOnStep = false; //Kill children when stepping. Used by WaitForAny
 		protected IStateMachineRef stateMachine = null; //The generated state machine for the async method
 		protected RoutineManager manager = null; //The manager to use for WaitForNextFrame
 		protected RoutineBase parent = null; //Routine that spawned this one
@@ -161,9 +162,12 @@ namespace AsyncRoutines
 			if (stateMachine != null)
 			{
 				//Stop children, but don't release them because their result might be needed
-				foreach (var child in children)
+				if (stopChildrenOnStep)
 				{
-					child.Stop();
+					foreach (var child in children)
+					{
+						child.Stop();
+					}
 				}
 
 				var currentId = id;
@@ -408,6 +412,7 @@ namespace AsyncRoutines
 		{
 			var anyRoutine = Get<Routine>(true);
 			anyRoutine.Trace(1);
+			anyRoutine.stopChildrenOnStep = true;
 			var isCompleted = false;
 			var currentId = anyRoutine.id;
 			foreach (var routine in routines)
@@ -454,6 +459,7 @@ namespace AsyncRoutines
 		{
 			var anyRoutine = Get<Routine<T>>(true);
 			anyRoutine.Trace(1);
+			anyRoutine.stopChildrenOnStep = true;
 			var isCompleted = false;
 			var currentId = anyRoutine.id;
 			foreach (var routine in routines)
@@ -566,6 +572,7 @@ namespace AsyncRoutines
 		{
 			id = 0;
 			ReleaseChildren();
+			stopChildrenOnStep = false;
 			onFinish = null;
 			if (onStop != null)
 			{
