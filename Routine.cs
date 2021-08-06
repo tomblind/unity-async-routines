@@ -43,6 +43,13 @@ namespace System.Runtime.CompilerServices
 
 namespace AsyncRoutines
 {
+#if DEBUG
+	public class RoutineException : Exception
+	{
+		public RoutineException(string message, Exception innerException) : base(message, innerException) {}
+	}
+#endif
+
 	//Routines do triple duty as task-likes, task-builders, and awaiters in order to keep internal access/pooling easy
 	public abstract class RoutineBase : INotifyCompletion
 	{
@@ -70,11 +77,19 @@ namespace AsyncRoutines
 					{
 						return "(unknown) at unknown:0:0";
 					}
+
+					var filePath = frame.GetFileName().Replace("\\", "/");
+					var assetsIndex = filePath.IndexOf("/Assets/");
+					if (assetsIndex >= 0)
+					{
+						filePath = filePath.Substring(assetsIndex + 1);
+					}
+
 					return string.Format(
-						"{0}.{1} at {2}:{3}:{4}",
+						"{0}.{1} (at <a href=\"{2}\" line=\"{3}\">{2}:{3}:{4}</a>)",
 						frame.GetMethod().DeclaringType,
 						frame.GetMethod().Name,
-						frame.GetFileName(),
+						filePath,
 						frame.GetFileLineNumber(),
 						frame.GetFileColumnNumber()
 					);
@@ -118,6 +133,7 @@ namespace AsyncRoutines
 		protected readonly List<RoutineBase> children = new List<RoutineBase>(); //Routines spawned by this one
 		protected Action onFinish = null; //Continuation to call when async method is finished
 		protected Action<Exception> onStop = null;
+		protected Exception thrownException = null;
 #if DEBUG
 		protected System.Diagnostics.StackFrame stackFrame = null; //Track where the routine was created for debugging
 #endif
@@ -137,11 +153,24 @@ namespace AsyncRoutines
 		//Pools
 		private static readonly TypedPool<RoutineBase> pool = new TypedPool<RoutineBase>();
 		private static readonly TypedPool<IResumerBase> resumerPool = new TypedPool<IResumerBase>();
+		private static readonly Pool<List<RoutineBase>> awaiterListPool = new Pool<List<RoutineBase>>();
+
+		//Is routine active?
+		private bool IsRunning { get { return !IsDead && !IsCompleted; }}
 
 		/// <summary> Stop the routine. </summary>
 		public void Stop()
 		{
-			Stop(null);
+			id = 0;
+			ReleaseChildren();
+			stopChildrenOnStep = false;
+			onFinish = null;
+
+			if (onStop != null)
+			{
+				onStop(thrownException);
+				onStop = null;
+			}
 		}
 
 		/// <summary> Internal use only. Executes to the next await or end of the async method. </summary>
@@ -206,12 +235,7 @@ namespace AsyncRoutines
 			//All done: resume parent if needed
 			if (state == State.Finished)
 			{
-				var _onFinish = onFinish;
-				Stop();
-				if (_onFinish != null)
-				{
-					_onFinish();
-				}
+				Finish();
 			}
 		}
 
@@ -221,7 +245,39 @@ namespace AsyncRoutines
 			onFinish = continuation;
 		}
 
-		/// <summary> Internal use only. Store the current stack frame for debuggging. </summary>
+		/// <summary> Internal use only. Throw an exception into the routine. </summary>
+		public void Throw(Exception exception)
+		{
+			var awaitingRoutines = awaiterListPool.Get();
+			CollectAwaitingRoutines(this, awaitingRoutines);
+
+			var currentIsAwaiting = false;
+			foreach (var routine in awaitingRoutines)
+			{
+				if (!routine.IsRunning)
+				{
+					continue;
+				}
+				else if (routine == Current)
+				{
+					currentIsAwaiting = true;
+				}
+				else
+				{
+					routine.OnException(exception);
+				}
+			}
+
+			awaitingRoutines.Clear();
+			awaiterListPool.Release(awaitingRoutines);
+
+			if (currentIsAwaiting && Current.IsRunning)
+			{
+				throw exception;
+			}
+		}
+
+		/// <summary> Internal use only. Store the current stack frame for debugging. </summary>
 		[System.Diagnostics.Conditional("DEBUG")]
 		public void Trace(int frame)
 		{
@@ -239,6 +295,7 @@ namespace AsyncRoutines
 			stateMachinePool.Clear();
 			pool.Clear();
 			resumerPool.Clear();
+			awaiterListPool.Clear();
 		}
 
 		public static void Report()
@@ -246,6 +303,7 @@ namespace AsyncRoutines
 			Debug.LogFormat("stateMachinePool = {0}", stateMachinePool.Report());
 			Debug.LogFormat("pool = {0}", pool.Report());
 			Debug.LogFormat("resumerPool = {0}", resumerPool.Report());
+			Debug.LogFormat("awaiterListPool = {0}", awaiterListPool.Report());
 		}
 
 		/// <summary> Get a routine from the pool. If yield is false routine will resume immediately from await. </summary>
@@ -429,13 +487,13 @@ namespace AsyncRoutines
 					isCompleted = routine.IsCompleted;
 					if (!isCompleted)
 					{
-						routine.OnCompleted(anyRoutine.Step);
+						routine.OnCompleted(anyRoutine.StepAny);
 					}
 				}
 			}
 			if (anyRoutine.children.Count == 0 || isCompleted)
 			{
-				anyRoutine.Step();
+				anyRoutine.StepAny();
 			}
 			return anyRoutine;
 		}
@@ -556,7 +614,7 @@ namespace AsyncRoutines
 			}
 		}
 
-		public void Start()
+		protected void Start()
 		{
 			if (manager == null)
 			{
@@ -568,16 +626,16 @@ namespace AsyncRoutines
 			}
 		}
 
-		protected void Stop(Exception exception)
+		protected void Finish()
 		{
-			id = 0;
-			ReleaseChildren();
-			stopChildrenOnStep = false;
-			onFinish = null;
-			if (onStop != null)
+			state = State.Finished;
+
+			var _onFinish = onFinish;
+			Stop();
+
+			if (_onFinish != null)
 			{
-				onStop(exception);
-				onStop = null;
+				_onFinish(); //Resume parent
 			}
 		}
 
@@ -590,27 +648,40 @@ namespace AsyncRoutines
 				stateMachinePool.Release(stateMachine);
 				stateMachine = null;
 			}
+			thrownException = null;
 			parent = null;
 			manager = null;
 		}
 
 		protected void OnException(Exception exception)
 		{
-			var root = this;
-			while (root.parent != null)
-			{
-				root = root.parent;
-			}
 #if DEBUG
-			if (TracingEnabled)
+			if (TracingEnabled && !(exception is RoutineException) && !(exception is AggregateException))
 			{
-				exception = new Exception(
-					string.Format("{0}\n----Async Stack----\n{1}\n---End Async Stack---", exception.Message, StackTrace),
+				exception = new RoutineException(
+					string.Format($"{exception.Message}\n----Async Stack----\n{StackTrace}\n---End Async Stack---\n"),
 					exception
 				);
 			}
 #endif
-			root.Stop(exception);
+
+			thrownException = (thrownException != null)
+				? new AggregateException(thrownException, exception)
+				: exception;
+
+			Finish();
+		}
+
+		protected void ThrowPendingException()
+		{
+			if (thrownException == null)
+			{
+				return;
+			}
+
+			var exception = thrownException;
+			thrownException = null;
+			throw exception;
 		}
 
 		private void Setup(bool yield, RoutineBase parent)
@@ -654,6 +725,23 @@ namespace AsyncRoutines
 				manager = null;
 			}
 		}
+
+		private static void CollectAwaitingRoutines(RoutineBase routine, List<RoutineBase> awaitingRoutines)
+		{
+			var isAwaiting = true;
+			foreach (var child in routine.children)
+			{
+				if (child.IsRunning)
+				{
+					isAwaiting = false;
+					CollectAwaitingRoutines(child, awaitingRoutines);
+				}
+			}
+			if (isAwaiting)
+			{
+				awaitingRoutines.Add(routine);
+			}
+		}
 	}
 
 	[AsyncMethodBuilder(typeof(Routine))]
@@ -668,7 +756,10 @@ namespace AsyncRoutines
 		}
 
 		/// <summary> Internal use only. Required for awaiter. </summary>
-		public void GetResult() {}
+		public void GetResult()
+		{
+			ThrowPendingException();
+		}
 
 		/// <summary> Internal use only. Required for task-like. </summary>
 		public Routine GetAwaiter()
@@ -731,6 +822,37 @@ namespace AsyncRoutines
 				}
 			}
 
+			//Propagate exceptions
+			foreach (var child in children)
+			{
+				var childException = (child as Routine).thrownException;
+				if (childException != null)
+				{
+					thrownException = (thrownException != null)
+						? new AggregateException(thrownException, childException)
+						: childException;
+				}
+			}
+			SetResult(); //Mark as finished
+
+			Step();
+		}
+
+		/// <summary> Internal use only. Steps a routine and sets it's result from the first completed child. </summary>
+		public void StepAny()
+		{
+			//Propagate exception
+			foreach (var child in children)
+			{
+				if (child.IsCompleted)
+				{
+					var childException = (child as Routine).thrownException;
+					thrownException = childException;
+					break;
+				}
+			}
+			SetResult(); //Mark as finished
+
 			Step();
 		}
 
@@ -749,7 +871,11 @@ namespace AsyncRoutines
 		private T result = default(T);
 
 		/// <summary> Internal use only. Required for awaiter. </summary>
-		public T GetResult() { return result; }
+		public T GetResult()
+		{
+			ThrowPendingException();
+			return result;
+		}
 
 		/// <summary> Internal use only. Required for task-like. </summary>
 		public Routine<T> GetAwaiter()
@@ -815,12 +941,21 @@ namespace AsyncRoutines
 				}
 			}
 
+			//Build results array and propagate exceptions
 			var resultArray = new I[children.Count];
 			for (var i = 0; i < children.Count; ++i)
 			{
-				resultArray[i] = (children[i] as Routine<I>).GetResult();
-			}
+				var child = (children[i] as Routine<I>);
+				resultArray[i] = child.result;
 
+				var childException = child.thrownException;
+				if (childException != null)
+				{
+					thrownException = (thrownException != null)
+						? new AggregateException(thrownException, childException)
+						: childException;
+				}
+			}
 			(this as Routine<I[]>).SetResult(resultArray);
 
 			Step();
@@ -831,9 +966,12 @@ namespace AsyncRoutines
 		{
 			foreach (var child in children)
 			{
+				//Propagate result and exception
 				if (child.IsCompleted)
 				{
-					SetResult((child as Routine<T>).GetResult());
+					var _child = (child as Routine<T>);
+					thrownException = _child.thrownException;
+					SetResult(_child.result);
 					break;
 				}
 			}

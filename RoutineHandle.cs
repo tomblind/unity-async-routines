@@ -46,5 +46,14 @@ namespace AsyncRoutines
 				routine.Stop();
 			}
 		}
+
+		/// <summary> Throw an exception in the routine. </summary>
+		public void Throw(Exception exception)
+		{
+			if (routine != null && id == routine.Id)
+			{
+				routine.Throw(exception);
+			}
+		}
 	}
 }

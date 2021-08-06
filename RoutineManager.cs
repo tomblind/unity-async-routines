@@ -87,6 +87,19 @@ namespace AsyncRoutines
 			}
 		}
 
+		/// <summary> Throws an exception in all managed routines. </summary>
+		public void ThrowAll(Exception exception)
+		{
+			for (var i = 0; i < roots.Count; ++i)
+			{
+				var root = roots[i];
+				if (root != null)
+				{
+					root.Throw(exception);
+				}
+			}
+		}
+
 		/// <summary> Manages and runs a routine. </summary>
 		public RoutineHandle Run(Routine task, Action<Exception> onStop = null)
 		{
@@ -125,6 +138,8 @@ namespace AsyncRoutines
 		{
 			if (exception != null)
 			{
+				Debug.LogError(exception.ToString());
+				if (exception is AggregateException a) { Debug.LogError(a.Flatten().ToString()); }
 				Debug.LogException(exception);
 			}
 		}

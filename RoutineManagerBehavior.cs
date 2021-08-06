@@ -57,5 +57,11 @@ namespace AsyncRoutines
 		{
 			routineManager.StopAll();
 		}
+
+		/// <summary> Throws an exception in all managed routines. </summary>
+		public void ThrowAll(Exception exception)
+		{
+			routineManager.ThrowAll(exception);
+		}
 	}
 }
