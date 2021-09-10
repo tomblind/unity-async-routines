@@ -134,6 +134,9 @@ namespace AsyncRoutines
 		protected Action onFinish = null; //Continuation to call when async method is finished
 		protected Action<Exception> onStop = null;
 		protected Exception thrownException = null;
+		protected readonly Action stepAction;
+		protected Action stepAnyAction;
+		protected Action stepAllAction;
 #if DEBUG
 		protected System.Diagnostics.StackFrame stackFrame = null; //Track where the routine was created for debugging
 #endif
@@ -157,6 +160,11 @@ namespace AsyncRoutines
 
 		//Is routine active?
 		private bool IsRunning { get { return !IsDead && !IsCompleted; }}
+
+		public RoutineBase()
+		{
+			stepAction = Step;
+		}
 
 		/// <summary> Stop the routine. </summary>
 		public void Stop()
@@ -402,7 +410,7 @@ namespace AsyncRoutines
 				}
 				if (!routine.IsCompleted)
 				{
-					routine.OnCompleted(allRoutine.StepAll);
+					routine.OnCompleted(allRoutine.stepAllAction);
 					isCompleted = false;
 				}
 			}
@@ -427,6 +435,10 @@ namespace AsyncRoutines
 		public static Routine<T[]> WaitForAll<T>(IEnumerable<Routine<T>> routines)
 		{
 			var allRoutine = Get<Routine<T[]>>(true);
+			if (allRoutine.stepAllAction == null)
+			{
+				allRoutine.stepAllAction = allRoutine.StepAll<T>;
+			}
 			allRoutine.Trace(1);
 			var isCompleted = true;
 			var currentId = allRoutine.id;
@@ -441,7 +453,7 @@ namespace AsyncRoutines
 				}
 				if (!routine.IsCompleted)
 				{
-					routine.OnCompleted(allRoutine.StepAll<T>);
+					routine.OnCompleted(allRoutine.stepAllAction);
 					isCompleted = false;
 				}
 			}
@@ -487,7 +499,7 @@ namespace AsyncRoutines
 					isCompleted = routine.IsCompleted;
 					if (!isCompleted)
 					{
-						routine.OnCompleted(anyRoutine.StepAny);
+						routine.OnCompleted(anyRoutine.stepAnyAction);
 					}
 				}
 			}
@@ -534,7 +546,7 @@ namespace AsyncRoutines
 					isCompleted = routine.IsCompleted;
 					if (!isCompleted)
 					{
-						routine.OnCompleted(anyRoutine.StepAny);
+						routine.OnCompleted(anyRoutine.stepAnyAction);
 					}
 				}
 			}
@@ -747,6 +759,12 @@ namespace AsyncRoutines
 	[AsyncMethodBuilder(typeof(Routine))]
 	public class Routine : RoutineBase
 	{
+		public Routine() : base()
+		{
+			stepAllAction = StepAll;
+			stepAnyAction = StepAny;
+		}
+
 		/// <summary> Assign a manager and stop handler to a routine. </summary>
 		public void SetManager(RoutineManager manager, Action<Exception> onStop)
 		{
@@ -797,7 +815,7 @@ namespace AsyncRoutines
 			where TAwaiter : INotifyCompletion
 			where TStateMachine : IAsyncStateMachine
 		{
-			awaiter.OnCompleted(Step);
+			awaiter.OnCompleted(stepAction);
 		}
 
 		/// <summary> Internal use only. Required for task builder. </summary>
@@ -805,7 +823,7 @@ namespace AsyncRoutines
 			where TAwaiter : ICriticalNotifyCompletion
 			where TStateMachine : IAsyncStateMachine
 		{
-			awaiter.OnCompleted(Step);
+			awaiter.OnCompleted(stepAction);
 		}
 
 		/// <summary> Internal use only. Required for task builder. </summary>
@@ -870,6 +888,11 @@ namespace AsyncRoutines
 	{
 		private T result = default(T);
 
+		public Routine() : base()
+		{
+			stepAnyAction = StepAny;
+		}
+
 		/// <summary> Internal use only. Required for awaiter. </summary>
 		public T GetResult()
 		{
@@ -914,7 +937,7 @@ namespace AsyncRoutines
 			where TAwaiter : INotifyCompletion
 			where TStateMachine : IAsyncStateMachine
 		{
-			awaiter.OnCompleted(Step);
+			awaiter.OnCompleted(stepAction);
 		}
 
 		/// <summary> Internal use only. Required for task builder. </summary>
@@ -922,7 +945,7 @@ namespace AsyncRoutines
 			where TAwaiter : ICriticalNotifyCompletion
 			where TStateMachine : IAsyncStateMachine
 		{
-			awaiter.OnCompleted(Step);
+			awaiter.OnCompleted(stepAction);
 		}
 
 		/// <summary> Internal use only. Required for task builder. </summary>
