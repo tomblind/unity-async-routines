@@ -79,14 +79,17 @@ namespace AsyncRoutines
 					}
 
 					var filePath = frame.GetFileName();
-					if (filePath != null) {
+					if (filePath != null) 
+					{
 						filePath = filePath.Replace("\\", "/");
 						var assetsIndex = filePath.IndexOf("/Assets/");
-						if (assetsIndex >= 0) {
+						if (assetsIndex >= 0) 
+						{
 							filePath = filePath.Substring(assetsIndex + 1);
 						}
 					}
-					else {
+					else 
+					{
 						filePath = "<filename unknown>";
 					}
 
