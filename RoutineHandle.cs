@@ -21,11 +21,14 @@
 //SOFTWARE.
 
 using System;
+using UnityEngine;
 
 namespace AsyncRoutines
 {
 	public struct RoutineHandle
-	{
+    {
+        private static RoutineStoppedException StopException = new();
+
 		private UInt64 id;
 		private Routine routine;
 
@@ -41,11 +44,12 @@ namespace AsyncRoutines
 		/// <summary> Stop the routine. </summary>
 		public void Stop()
 		{
+            // Stopping a routine does not allow for any cleanup of objects that might be in running async methods, so we want to stop routines by throwing an exception.
 			if (routine != null && id == routine.Id)
 			{
-				routine.Stop();
+				routine.Throw(StopException);
 			}
-		}
+        }
 
 		/// <summary> Throw an exception in the routine. </summary>
 		public void Throw(Exception exception)

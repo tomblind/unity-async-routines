@@ -23,9 +23,12 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System;
+using System.Diagnostics;
+using System.Runtime.ExceptionServices;
 using UnityEngine;
 using UnityEngine.Assertions;
 using AsyncRoutines.Internal;
+using UnityEngine.ResourceManagement.AsyncOperations;
 
 //This needs to be explicitly defined for the compiler
 namespace System.Runtime.CompilerServices
@@ -43,7 +46,7 @@ namespace System.Runtime.CompilerServices
 
 namespace AsyncRoutines
 {
-#if DEBUG
+#if DEBUG_ROUTINES
 	public class RoutineException : Exception
 	{
 		public RoutineException(string message, Exception innerException) : base(message, innerException) {}
@@ -53,8 +56,15 @@ namespace AsyncRoutines
 	//Routines do triple duty as task-likes, task-builders, and awaiters in order to keep internal access/pooling easy
 	public abstract class RoutineBase : INotifyCompletion
 	{
+        public RoutineManager Manager => manager;
+
 		/// <summary> Enable stack tracing for debugging. Off by default due to performance implications. </summary>
 		public static bool TracingEnabled { get; set; }
+#if DEBUG_ROUTINES
+            = true;
+#else
+            = false;
+#endif
 
 		/// <summary> The running instance id of the routine. If the routine is stopped, will return zero. </summary>
 		public UInt64 Id { get { return id; } }
@@ -65,7 +75,7 @@ namespace AsyncRoutines
 		/// <summary> Internal use only. Required for awaiter. </summary>
 		public bool IsCompleted { get { return state == State.Finished; } }
 
-#if DEBUG
+#if DEBUG_ROUTINES
 		/// <summary> The current async/await stack trace for this routine </summary>
 		public string StackTrace
 		{
@@ -79,16 +89,16 @@ namespace AsyncRoutines
 					}
 
 					var filePath = frame.GetFileName();
-					if (filePath != null) 
+					if (filePath != null)
 					{
 						filePath = filePath.Replace("\\", "/");
 						var assetsIndex = filePath.IndexOf("/Assets/");
-						if (assetsIndex >= 0) 
+						if (assetsIndex >= 0)
 						{
 							filePath = filePath.Substring(assetsIndex + 1);
 						}
 					}
-					else 
+					else
 					{
 						filePath = "<filename unknown>";
 					}
@@ -129,8 +139,21 @@ namespace AsyncRoutines
 		protected class StateMachineRef<T> : IStateMachineRef where T : IAsyncStateMachine
 		{
 			public T value;
+
+            [HideInCallstack]
 			public void MoveNext() { value.MoveNext(); }
 		}
+
+        public static void ResetStatics()
+        {
+            stateMachinePool = new TypedPool<IStateMachineRef>();
+            nextId = 1;
+            steppingStack = new Stack<RoutineBase>();
+
+            pool = new TypedPool<RoutineBase>();
+            resumerPool = new TypedPool<IResumerBase>();
+            awaiterListPool = new Pool<List<RoutineBase>>();
+        }
 
 		protected UInt64 id = 0; //Used to verify a routine is still the same instance and hasn't been recycled
 		protected State state = State.NotStarted;
@@ -145,26 +168,32 @@ namespace AsyncRoutines
 		protected readonly Action stepAction;
 		protected Action stepAnyAction;
 		protected Action stepAllAction;
-#if DEBUG
+
+        protected static Exception GetThrownException(RoutineBase routine)
+        {
+            return routine.thrownException;
+        }
+
+#if DEBUG_ROUTINES
 		protected System.Diagnostics.StackFrame stackFrame = null; //Track where the routine was created for debugging
 #endif
 
 		//Top-most routine currently being stepped
-		protected static RoutineBase Current { get { return (steppingStack.Count > 0) ? steppingStack.Peek() : null; } }
+		public static RoutineBase Current { get { return (steppingStack.Count > 0) ? steppingStack.Peek() : null; } }
 
 		//State machines are pooled by keeping a wrapped class version. This is pointless in debug where the state
 		//machines are generated as classes, but useful in release where they are structs.
-		protected static readonly TypedPool<IStateMachineRef> stateMachinePool = new TypedPool<IStateMachineRef>();
+		protected static TypedPool<IStateMachineRef> stateMachinePool = new TypedPool<IStateMachineRef>();
 
 		private static UInt64 nextId = 1; //Id generator. 64bits should be enough, right?
 
 		//Tracks actively stepping routines
-		private static readonly Stack<RoutineBase> steppingStack = new Stack<RoutineBase>();
+		private static Stack<RoutineBase> steppingStack = new Stack<RoutineBase>();
 
 		//Pools
-		private static readonly TypedPool<RoutineBase> pool = new TypedPool<RoutineBase>();
-		private static readonly TypedPool<IResumerBase> resumerPool = new TypedPool<IResumerBase>();
-		private static readonly Pool<List<RoutineBase>> awaiterListPool = new Pool<List<RoutineBase>>();
+		private static TypedPool<RoutineBase> pool = new TypedPool<RoutineBase>();
+		private static TypedPool<IResumerBase> resumerPool = new TypedPool<IResumerBase>();
+		private static Pool<List<RoutineBase>> awaiterListPool = new Pool<List<RoutineBase>>();
 
 		//Is routine active?
 		private bool IsRunning { get { return !IsDead && !IsCompleted; }}
@@ -173,6 +202,8 @@ namespace AsyncRoutines
 		{
 			stepAction = Step;
 		}
+
+		public abstract object GetBoxedResult();
 
 		/// <summary> Stop the routine. </summary>
 		public void Stop()
@@ -189,6 +220,7 @@ namespace AsyncRoutines
 			}
 		}
 
+        [HideInCallstack]
 		/// <summary> Internal use only. Executes to the next await or end of the async method. </summary>
 		public void Step()
 		{
@@ -294,10 +326,10 @@ namespace AsyncRoutines
 		}
 
 		/// <summary> Internal use only. Store the current stack frame for debugging. </summary>
-		[System.Diagnostics.Conditional("DEBUG")]
+		[System.Diagnostics.Conditional("DEBUG_ROUTINES")]
 		public void Trace(int frame)
 		{
-#if DEBUG
+#if DEBUG_ROUTINES
 			if (TracingEnabled)
 			{
 				stackFrame = new System.Diagnostics.StackFrame(frame + 1, true);
@@ -316,10 +348,10 @@ namespace AsyncRoutines
 
 		public static void Report()
 		{
-			Debug.LogFormat("stateMachinePool = {0}", stateMachinePool.Report());
-			Debug.LogFormat("pool = {0}", pool.Report());
-			Debug.LogFormat("resumerPool = {0}", resumerPool.Report());
-			Debug.LogFormat("awaiterListPool = {0}", awaiterListPool.Report());
+			UnityEngine.Debug.LogFormat("stateMachinePool = {0}", stateMachinePool.Report());
+		    UnityEngine.Debug.LogFormat("pool = {0}", pool.Report());
+			UnityEngine.Debug.LogFormat("resumerPool = {0}", resumerPool.Report());
+			UnityEngine.Debug.LogFormat("awaiterListPool = {0}", awaiterListPool.Report());
 		}
 
 		/// <summary> Get a routine from the pool. If yield is false routine will resume immediately from await. </summary>
@@ -580,7 +612,7 @@ namespace AsyncRoutines
 		public static async Routine WaitForSeconds(float seconds)
 		{
 			var endTime = Time.time + seconds;
-			while (Time.time < endTime)
+        	while (Time.time < endTime)
 			{
 				await WaitForNextFrame();
 			}
@@ -634,7 +666,7 @@ namespace AsyncRoutines
 			}
 		}
 
-		protected void Start()
+		public void Start()
 		{
 			if (manager == null)
 			{
@@ -646,6 +678,7 @@ namespace AsyncRoutines
 			}
 		}
 
+        [HideInCallstack]
 		protected void Finish()
 		{
 			state = State.Finished;
@@ -673,9 +706,10 @@ namespace AsyncRoutines
 			manager = null;
 		}
 
+        [HideInCallstack]
 		protected void OnException(Exception exception)
 		{
-#if DEBUG
+#if DEBUG_ROUTINES
 			if (TracingEnabled && !(exception is RoutineException) && !(exception is AggregateException))
 			{
 				exception = new RoutineException(
@@ -694,14 +728,13 @@ namespace AsyncRoutines
 
 		protected void ThrowPendingException()
 		{
-			if (thrownException == null)
-			{
+			if (thrownException == null) {
 				return;
 			}
 
 			var exception = thrownException;
 			thrownException = null;
-			throw exception;
+			ExceptionDispatchInfo.Capture(exception).Throw();
 		}
 
 		private void Setup(bool yield, RoutineBase parent)
@@ -784,7 +817,15 @@ namespace AsyncRoutines
 		/// <summary> Internal use only. Required for awaiter. </summary>
 		public void GetResult()
 		{
-			ThrowPendingException();
+            if (thrownException != null) {
+                ThrowPendingException();
+            }
+		}
+
+		public override object GetBoxedResult()
+		{
+			GetResult();
+			return null;
 		}
 
 		/// <summary> Internal use only. Required for task-like. </summary>
@@ -851,7 +892,7 @@ namespace AsyncRoutines
 			//Propagate exceptions
 			foreach (var child in children)
 			{
-				var childException = (child as Routine).thrownException;
+				var childException = GetThrownException(child);
 				if (childException != null)
 				{
 					thrownException = (thrownException != null)
@@ -870,9 +911,8 @@ namespace AsyncRoutines
 			//Propagate exception
 			foreach (var child in children)
 			{
-				if (child.IsCompleted)
-				{
-					var childException = (child as Routine).thrownException;
+				if (child.IsCompleted) {
+                    var childException = GetThrownException(child);
 					thrownException = childException;
 					break;
 				}
@@ -904,8 +944,15 @@ namespace AsyncRoutines
 		/// <summary> Internal use only. Required for awaiter. </summary>
 		public T GetResult()
 		{
-			ThrowPendingException();
+            if (thrownException != null) {
+                ThrowPendingException();
+            }
 			return result;
+		}
+
+		public override object GetBoxedResult()
+		{
+			return GetResult();
 		}
 
 		/// <summary> Internal use only. Required for task-like. </summary>
