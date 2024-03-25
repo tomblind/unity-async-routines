@@ -1,4 +1,4 @@
-﻿//MIT License
+//MIT License
 //
 //Copyright (c) 2018 Tom Blind
 //
@@ -33,6 +33,12 @@ namespace AsyncRoutines
 		private List<LightResumer> pendingNextFrameResumers = new List<LightResumer>();
 		private readonly List<Routine> roots = new List<Routine>();
 		private int maxRoot = -1;
+
+		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        public static void ResetStatics()
+        {
+            RoutineBase.ResetStatics();
+        }
 
 		/// <summary> Resumers managed routines that are waiting for next frame. </summary>
 		public void Update()
@@ -136,10 +142,12 @@ namespace AsyncRoutines
 
 		private static void DefaultOnStop(Exception exception)
 		{
-			if (exception != null)
+            if (exception != null && exception is not RoutineStoppedException)
 			{
-				Debug.LogError(exception.ToString());
-				if (exception is AggregateException a) { Debug.LogError(a.Flatten().ToString()); }
+                if (exception is AggregateException a) {
+                    Debug.LogError(a.Flatten().ToString());
+                }
+
 				Debug.LogException(exception);
 			}
 		}
